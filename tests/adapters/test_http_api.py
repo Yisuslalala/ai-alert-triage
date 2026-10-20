@@ -18,7 +18,7 @@ def client() -> TestClient:
     repo = InMemoryTriageRepository()
     classifier = FakeClassifier(Classification(Severity.HIGH, "Looks bad", "fake-model"))
     use_case = TriageAlert(classifier, repo, MarkingRedactor(), clock=lambda: NOW)
-    return TestClient(create_app(use_case, repo))
+    return TestClient(create_app(use_case, repo, verifier=None))
 
 
 def test_health(client: TestClient) -> None:

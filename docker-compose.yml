@@ -25,6 +25,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://triage:triage@db:5432/triage
       AUDIT_LOG_PATH: /app/logs/llm_audit.jsonl
+      # Override with AUTH_ISSUER/AUTH_AUDIENCE/AUTH_JWKS_URL in .env to require tokens.
+      AUTH_DISABLED: ${AUTH_DISABLED:-true}
     ports:
       - "127.0.0.1:8000:8000"
     volumes:

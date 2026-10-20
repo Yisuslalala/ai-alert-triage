@@ -7,6 +7,7 @@ from ai_alert_triage.adapters.audit.jsonl import JsonlAuditLog
 from ai_alert_triage.adapters.classification.keyword import KeywordClassifier
 from ai_alert_triage.adapters.classification.llm import LLMClassifier, ModelPricing
 from ai_alert_triage.adapters.http.app import create_app
+from ai_alert_triage.adapters.http.auth import JwtVerifier
 from ai_alert_triage.adapters.llm.openai_chat import OpenAIChatClient
 from ai_alert_triage.adapters.persistence.in_memory import InMemoryTriageRepository
 from ai_alert_triage.adapters.persistence.sql.repository import SqlAlchemyTriageRepository
@@ -54,6 +55,15 @@ def build_repository(settings: Settings) -> TriageRepository:
     return SqlAlchemyTriageRepository(create_engine(settings.database_url, pool_pre_ping=True))
 
 
+def build_verifier(settings: Settings) -> JwtVerifier | None:
+    if settings.auth_disabled:
+        return None
+    assert settings.auth_issuer and settings.auth_audience and settings.auth_jwks_url
+    return JwtVerifier.from_jwks(
+        settings.auth_issuer, settings.auth_audience, settings.auth_jwks_url
+    )
+
+
 settings = Settings.from_env()
 repository = build_repository(settings)
 triage_alert = TriageAlert(
@@ -62,4 +72,4 @@ triage_alert = TriageAlert(
     redactor=RegexRedactor(),
 )
 
-app = create_app(triage_alert, repository)
+app = create_app(triage_alert, repository, build_verifier(settings))

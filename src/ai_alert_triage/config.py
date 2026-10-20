@@ -24,6 +24,10 @@ class Settings:
     price_output_per_million_usd: float | None
     audit_log_path: Path
     database_url: str | None
+    auth_disabled: bool = False
+    auth_issuer: str | None = None
+    auth_audience: str | None = None
+    auth_jwks_url: str | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] = os.environ) -> Settings:
@@ -42,6 +46,10 @@ class Settings:
             price_output_per_million_usd=_optional_float(env, "LLM_PRICE_OUTPUT_PER_MILLION"),
             audit_log_path=Path(env.get("AUDIT_LOG_PATH", "logs/llm_audit.jsonl")),
             database_url=env.get("DATABASE_URL") or None,
+            auth_disabled=env.get("AUTH_DISABLED", "false").lower() == "true",
+            auth_issuer=env.get("AUTH_ISSUER") or None,
+            auth_audience=env.get("AUTH_AUDIENCE") or None,
+            auth_jwks_url=env.get("AUTH_JWKS_URL") or None,
         )
         settings._validate()
         return settings
@@ -57,10 +65,18 @@ class Settings:
                 "AZURE_OPENAI_API_KEY": self.azure_api_key,
                 "AZURE_OPENAI_API_VERSION": self.azure_api_version,
             }
+        if not self.auth_disabled:
+            # Secure by default: running without auth has to be an explicit choice.
+            required |= {
+                "AUTH_ISSUER": self.auth_issuer,
+                "AUTH_AUDIENCE": self.auth_audience,
+                "AUTH_JWKS_URL": self.auth_jwks_url,
+            }
         missing = [name for name, value in required.items() if not value]
         if missing:
             raise ConfigError(
-                f"LLM_PROVIDER={self.llm_provider} requires: {', '.join(missing)}"
+                f"missing required settings: {', '.join(missing)}"
+                " (set AUTH_DISABLED=true to run without authentication)"
             )
 
 
