@@ -48,3 +48,6 @@ class RegexRedactor:
             description=redact_text(alert.description),
             raw_payload=_redact_value(alert.raw_payload),
         )
+
+    def redact_data(self, value: Any) -> Any:
+        return _redact_value(value)

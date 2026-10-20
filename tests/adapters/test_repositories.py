@@ -15,12 +15,21 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine
 
-from ai_alert_triage.adapters.persistence.in_memory import InMemoryTriageRepository
-from ai_alert_triage.adapters.persistence.sql.repository import SqlAlchemyTriageRepository
+from ai_alert_triage.adapters.persistence.in_memory import (
+    InMemoryReportRepository,
+    InMemoryTriageRepository,
+)
+from ai_alert_triage.adapters.persistence.sql.repository import (
+    SqlAlchemyReportRepository,
+    SqlAlchemyTriageRepository,
+)
 from ai_alert_triage.adapters.persistence.sql.tables import Base
 from ai_alert_triage.domain.alert import Alert
+from ai_alert_triage.domain.investigation import Evidence, IncidentReport
+from ai_alert_triage.domain.mitre import CATALOG
 from ai_alert_triage.domain.severity import Severity
 from ai_alert_triage.domain.triage import TriageResult
+from ai_alert_triage.ports.investigation import ReportRepository
 from ai_alert_triage.ports.triage import TriageRepository
 
 POSTGRES_URL = os.environ.get("TEST_DATABASE_URL")
@@ -104,6 +113,60 @@ def test_timestamps_come_back_in_utc(repository: TriageRepository) -> None:
 
     assert stored is not None
     assert stored.triaged_at.utcoffset() == UTC.utcoffset(None)
+
+
+@pytest.fixture(
+    params=[
+        "memory",
+        "sqlite",
+        pytest.param("postgres", marks=requires_postgres),
+    ]
+)
+def stores(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> Iterator[tuple[TriageRepository, ReportRepository]]:
+    if request.param == "memory":
+        yield InMemoryTriageRepository(), InMemoryReportRepository()
+        return
+    url = f"sqlite:///{tmp_path / 'test.db'}" if request.param == "sqlite" else POSTGRES_URL
+    assert url is not None
+    engine = create_engine(url)
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    yield SqlAlchemyTriageRepository(engine), SqlAlchemyReportRepository(engine)
+    Base.metadata.drop_all(engine)
+    engine.dispose()
+
+
+def make_report(alert: Alert) -> IncidentReport:
+    return IncidentReport(
+        alert_id=alert.id,
+        summary="Encoded PowerShell from a phishing attachment.",
+        techniques=(CATALOG["T1566.001"], CATALOG["T1059.001"]),
+        evidence=(
+            Evidence(
+                "sentinelone",
+                "sentinelone_get_threats(host_1)",
+                [{"threatInfo": {"threatName": "invoice.ps1"}, "indicators": []}],
+            ),
+            Evidence("okta", "okta_get_user(user_1)", None),
+        ),
+        next_steps=("Isolate WS-01.", "Reset credentials."),
+        model="gpt-test",
+        created_at=datetime(2026, 10, 20, 8, 1, tzinfo=UTC),
+    )
+
+
+def test_report_round_trips(stores: tuple[TriageRepository, ReportRepository]) -> None:
+    triage, reports = stores
+    alert, result = make_pair()
+    triage.save(alert, result)
+    report = make_report(alert)
+
+    reports.save(report)
+
+    assert reports.get(alert.id) == report
+    assert reports.get(uuid4()) is None
 
 
 @requires_postgres

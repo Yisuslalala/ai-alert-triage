@@ -1,4 +1,5 @@
 from dataclasses import replace
+from typing import Any
 from uuid import UUID
 
 from ai_alert_triage.domain.alert import Alert
@@ -36,3 +37,6 @@ class MarkingRedactor:
 
     def redact(self, alert: Alert) -> Alert:
         return replace(alert, description="[REDACTED]")
+
+    def redact_data(self, value: Any) -> Any:
+        return value

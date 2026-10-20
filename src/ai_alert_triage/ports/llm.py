@@ -6,7 +6,7 @@ from uuid import UUID
 
 @dataclass(frozen=True, slots=True)
 class LLMMessage:
-    role: Literal["system", "user"]
+    role: Literal["system", "user", "assistant"]
     content: str
 
 

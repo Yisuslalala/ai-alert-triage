@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from ai_alert_triage.domain.alert import Alert
@@ -9,6 +9,10 @@ class Redactor(Protocol):
     """Removes sensitive data from an alert before it leaves our boundary."""
 
     def redact(self, alert: Alert) -> Alert: ...
+
+    def redact_data(self, value: Any) -> Any:
+        """Redact any JSON-like value, e.g. a context source's response."""
+        ...
 
 
 class AlertClassifier(Protocol):

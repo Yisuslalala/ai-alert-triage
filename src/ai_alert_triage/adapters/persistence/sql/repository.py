@@ -1,11 +1,18 @@
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Engine
 from sqlalchemy.orm import sessionmaker
 
-from ai_alert_triage.adapters.persistence.sql.tables import AlertRow, TriageResultRow
+from ai_alert_triage.adapters.persistence.sql.tables import (
+    AlertRow,
+    IncidentReportRow,
+    TriageResultRow,
+)
 from ai_alert_triage.domain.alert import Alert
+from ai_alert_triage.domain.investigation import Evidence, IncidentReport
+from ai_alert_triage.domain.mitre import CATALOG
 from ai_alert_triage.domain.severity import Severity
 from ai_alert_triage.domain.triage import TriageResult
 
@@ -54,3 +61,50 @@ class SqlAlchemyTriageRepository:
                 model=row.model,
                 triaged_at=_as_utc(row.triaged_at),
             )
+
+
+class SqlAlchemyReportRepository:
+    """Stores incident reports. Assumes the alert row exists (saved by triage first)."""
+
+    def __init__(self, engine: Engine) -> None:
+        self._sessions = sessionmaker(engine, expire_on_commit=False)
+
+    def save(self, report: IncidentReport) -> None:
+        with self._sessions.begin() as session:
+            session.merge(
+                IncidentReportRow(
+                    alert_id=report.alert_id,
+                    report=_report_document(report),
+                    model=report.model,
+                    created_at=report.created_at,
+                )
+            )
+
+    def get(self, alert_id: UUID) -> IncidentReport | None:
+        with self._sessions() as session:
+            row = session.get(IncidentReportRow, alert_id)
+            if row is None:
+                return None
+            document = row.report
+            return IncidentReport(
+                alert_id=row.alert_id,
+                summary=document["summary"],
+                # Techniques are stored by ID and resolved against the current catalog.
+                techniques=tuple(CATALOG[tid] for tid in document["techniques"] if tid in CATALOG),
+                evidence=tuple(Evidence(**item) for item in document["evidence"]),
+                next_steps=tuple(document["next_steps"]),
+                model=row.model,
+                created_at=_as_utc(row.created_at),
+            )
+
+
+def _report_document(report: IncidentReport) -> dict[str, Any]:
+    return {
+        "summary": report.summary,
+        "techniques": [technique.id for technique in report.techniques],
+        "evidence": [
+            {"source": item.source, "query": item.query, "data": item.data}
+            for item in report.evidence
+        ],
+        "next_steps": list(report.next_steps),
+    }
