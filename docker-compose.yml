@@ -1,0 +1,38 @@
+# Local development only: the credentials below are not for production.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: triage
+      POSTGRES_PASSWORD: triage
+      POSTGRES_DB: triage
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U triage -d triage"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  api:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://triage:triage@db:5432/triage
+      AUDIT_LOG_PATH: /app/logs/llm_audit.jsonl
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - auditlogs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  auditlogs:

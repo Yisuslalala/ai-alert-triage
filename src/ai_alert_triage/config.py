@@ -23,6 +23,7 @@ class Settings:
     price_input_per_million_usd: float | None
     price_output_per_million_usd: float | None
     audit_log_path: Path
+    database_url: str | None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] = os.environ) -> Settings:
@@ -40,6 +41,7 @@ class Settings:
             price_input_per_million_usd=_optional_float(env, "LLM_PRICE_INPUT_PER_MILLION"),
             price_output_per_million_usd=_optional_float(env, "LLM_PRICE_OUTPUT_PER_MILLION"),
             audit_log_path=Path(env.get("AUDIT_LOG_PATH", "logs/llm_audit.jsonl")),
+            database_url=env.get("DATABASE_URL") or None,
         )
         settings._validate()
         return settings

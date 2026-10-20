@@ -1,6 +1,7 @@
 """Composition root: the only place that picks concrete adapters."""
 
 import openai
+from sqlalchemy import create_engine
 
 from ai_alert_triage.adapters.audit.jsonl import JsonlAuditLog
 from ai_alert_triage.adapters.classification.keyword import KeywordClassifier
@@ -8,10 +9,11 @@ from ai_alert_triage.adapters.classification.llm import LLMClassifier, ModelPric
 from ai_alert_triage.adapters.http.app import create_app
 from ai_alert_triage.adapters.llm.openai_chat import OpenAIChatClient
 from ai_alert_triage.adapters.persistence.in_memory import InMemoryTriageRepository
+from ai_alert_triage.adapters.persistence.sql.repository import SqlAlchemyTriageRepository
 from ai_alert_triage.adapters.redaction.regex import RegexRedactor
 from ai_alert_triage.application.triage_alert import TriageAlert
 from ai_alert_triage.config import Settings
-from ai_alert_triage.ports.triage import AlertClassifier
+from ai_alert_triage.ports.triage import AlertClassifier, TriageRepository
 
 
 def build_classifier(settings: Settings) -> AlertClassifier:
@@ -45,8 +47,15 @@ def build_classifier(settings: Settings) -> AlertClassifier:
     )
 
 
+def build_repository(settings: Settings) -> TriageRepository:
+    if settings.database_url is None:
+        return InMemoryTriageRepository()
+    # Tables come from Alembic migrations (`alembic upgrade head`), not create_all.
+    return SqlAlchemyTriageRepository(create_engine(settings.database_url, pool_pre_ping=True))
+
+
 settings = Settings.from_env()
-repository = InMemoryTriageRepository()
+repository = build_repository(settings)
 triage_alert = TriageAlert(
     classifier=build_classifier(settings),
     repository=repository,

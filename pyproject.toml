@@ -8,9 +8,12 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
+    "alembic>=1.20.0",
     "fastapi>=0.143.0",
     "openai>=3.35.1",
+    "psycopg[binary]>=3.3.6",
     "pydantic>=2.14.1",
+    "sqlalchemy>=2.1.5",
     "uvicorn[standard]>=0.54.0",
 ]
 
@@ -35,6 +38,7 @@ pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
+extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
